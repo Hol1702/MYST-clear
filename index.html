@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>宮下流・歴史定期考査ジェネレーター＆超分析アナリティクス</title>
+    <!-- 弱点分析＆推移グラフ描画用ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif; line-height: 1.6; color: #333; max-width: 1200px; margin: 0 auto; padding: 20px; background-color: #f3f4f6; }
+        .grid-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .main-panel { background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .side-panel { display: flex; flex-direction: column; gap: 20px; }
+        .card { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 4px solid #0056b3; }
+        .card.history { border-top-color: #28a745; }
+        .card.analytics { border-top-color: #dc3545; }
+        h1, h2, h3 { color: #111; margin-top: 0; }
+        .test-header { text-align: center; border-bottom: 3px double #333; padding-bottom: 10px; margin-bottom: 25px; position: relative; }
+        .timer-display { position: absolute; right: 10px; top: 10px; font-size: 20px; font-weight: bold; background: #fee2e2; color: #991b1b; padding: 5px 15px; border-radius: 20px; border: 2px solid #f87171; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #0056b3; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; font-weight: bold; width: 100%; transition: 0.2s; margin-bottom: 5px; }
+        button:hover { background-color: #004085; }
+        .btn-retry { background-color: #ea580c; }
+        .btn-retry:hover { background-color: #c2410c; }
+        .teacher-comment { background: #f8f9fa; padding: 15px; border-left: 5px solid #0056b3; margin-bottom: 25px; font-style: italic; font-size: 14px; }
+        .question-item { background: #fafafa; padding: 15px; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 15px; position: relative; }
+        .point-tag { float: right; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .scoring-zone { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd; display: flex; gap: 10px; align-items: center; }
+        .btn-score { width: auto; padding: 6px 15px; font-size: 13px; background-color: #e5e7eb; color: #333; margin: 0; }
+        .btn-score.active-correct { background-color: #28a745; color: white; }
+        .btn-score.active-wrong { background-color: #dc3545; color: white; }
+        .img-container { text-align: center; margin: 15px 0; background: #fff; padding: 10px; border: 1px solid #e5e7eb; border-radius: 4px; }
+        .img-container img { max-width: 100%; max-height: 200px; border-radius: 4px; }
+        .score-counter { font-size: 24px; font-weight: bold; color: #0056b3; text-align: center; margin: 15px 0; padding: 10px; background: #e0f2fe; border-radius: 6px; }
+        .keyword-box { margin-top: 8px; background: #fff; border: 1px solid #fed7aa; padding: 10px; border-radius: 4px; font-size: 13px; }
+        .keyword-title { font-weight: bold; color: #c2410c; margin-bottom: 5px; }
+        .keyword-item { display: inline-block; margin-right: 15px; cursor: pointer; }
+        .history-list { max-height: 200px; overflow-y: auto; padding: 0; margin: 0; list-style: none; }
+        .history-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 13px; }
+        .badge { display: inline-block; padding: 2px 6px; font-size: 11px; color: white; border-radius: 3px; margin-right: 5px; }
+        .ans-text { display: none; margin-top: 8px; padding: 12px; background: #f0fdf4; border-left: 3px solid #28a745; font-size: 13px; color: #166534; border-radius: 0 4px 4px 0; }
+        .show-ans-btn { background: #6b7280; margin-top: 20px; }
+        @media print { .side-panel, .scoring-zone, .no-print, button, .timer-display { display: none !important; } .grid-layout { grid-template-columns: 1fr; } body { background: #fff; } .ans-text { display: block !important; } }
+    </style>
+</head>
+<body>
+
+<div class="grid-layout">
+    <!-- 左側：メインテストペーパーパネル -->
+    <div class="main-panel">
+        <div class="test-header">
+            <h1>令和8年度 社会科定期考査 模擬シミュレーター</h1>
+            <div style="font-size: 14px; color: #666;">担当：宮下 / ターゲット：<span id="headerMaxScore">70</span>点満点構成</div>
+            <div id="timerBox" class="timer-display" style="display:none;">⏱ <span id="timeLeft">00:00</span></div>
+        </div>
+
+        <div class="teacher-comment">
+            <strong>【宮下からのメッセージ】</strong><br>
+            「同じ問題を回しても効果が薄い」というのはその通り。タイマー機能で時間配分を意識し、自己採点では記述の採点基準キーワードを厳しくチェックしなさい。間違えた問題は「×」がついたものだけで再テストし、全問正解できるまでループすること。
+        </div>
+
+        <div id="testArea" style="display:none;">
+            <div class="score-counter">現在の自己採点結果: <span id="liveScore">0</span> / <span id="labelMaxScore">70</span> 点</div>
+            <div id="dynamicQuestions"></div>
+            <button class="show-ans-btn no-print" onclick="toggleAllAnswers()">👁 全問題の模範解答・採点基準を確認する</button>
+            <button style="background-color: #28a745; margin-top: 10px;" class="no-print" onclick="saveCurrentTest()">💾 このテスト結果を履歴メモに保存する</button>
+            <button id="btnRetryWrong" class="btn-retry no-print" style="display:none; margin-top: 5px;" onclick="buildWrongOnlyTest()">🔀 間違えた問題だけで再テストを行う</button>
+        </div>
+        <div id="placeholder" style="text-align: center; color: #999; padding: 60px 0;">
+            右側の設定パネルから条件を入力し、「テストを完全新規生成」を押してください。
+        </div>
+    </div>
+
+    <!-- 右側：設定、アナリティクス、スコア推移、履歴 -->
+    <div class="side-panel no-print">
+        <!-- 設定カード -->
+        <div class="card">
+            <h2>🛠️ テスト作成</h2>
+            <div class="form-group">
+                <label for="inputPages">教科書範囲（メモ用表記）</label>
+                <input type="text" id="inputPages" value="p.210～227、p.232～253">
+            </div>
+            <div class="form-group">
+                <label for="inputMaxScore">テストの満点設定</label>
+                <input type="number" id="inputMaxScore" value="70" min="10" max="200">
+            </div>
+            <button onclick="buildRandomTest()">📝 テストを完全新規生成</button>
+        </div>
+
+        <!-- 弱点分析アナリティクス -->
+        <div class="card analytics">
+            <h2>📊 リアルタイム弱点分析</h2>
+            <p style="font-size: 11px; color: #666; margin-top:-10px;">自己採点で「×」をつけた問題の傾向です。</p>
+            <div style="position: relative; height:160px; margin-bottom: 15px;">
+                <canvas id="chartType"></canvas>
+            </div>
+            <div style="position: relative; height:160px;">
+                <canvas id="chartUnit"></canvas>
+            </div>
+        </div>
+
+        <!-- スコア推移グラフカード -->
+        <div class="card" style="border-top-color: #8b5cf6;">
+            <h2>📈 スコア成長推移</h2>
+            <div style="position: relative; height:160px;">
+                <canvas id="chartTimeline"></canvas>
+            </div>
+        </div>
+
+        <!-- 履歴メモカード -->
+        <div class="card history">
+            <h2>💾 過去のテスト履歴メモ</h2>
+            <ul id="historyList" class="history-list">
+                <li style="color: #999; font-size:12px;">履歴はまだありません。</li>
+            </ul>
+            <button style="margin-top:10px; background:#ef4444; padding: 6px 12px; font-size: 12px;" onclick="clearHistory()">履歴をすべて削除</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// --- データベース（Web上のオープンな資料画像を直接引用） ---
+const itemPool = {
+    units: ["第1次世界大戦・革命", "大正デモクラシー・文化", "世界恐慌・ファシズム", "日中戦争・太平洋戦争"],
+    types: ["一問一答", "記述問題", "論述問題"],
+    
+    short: [
+        { id: "s1", text: "1914年、ある皇太子夫妻が暗殺されたことをきっかけに第1次世界大戦が勃発しました。この事件が起きた都市名を答えなさい。", ans: "サライボ（サライェヴォ）", p: 2, unit: "第1次世界大戦・革命", type: "一問一答" },
+        { id: "s2", text: "第1次世界大戦中、日本が中国におけるドイツの拠点を占領した、山東半島にある都市名を答えなさい。", ans: "青島（チンタオ）", p: 2, unit: "第1次世界大戦・革命", type: "一問一答" },
+        { id: "s3", text: "1915年、日本が中華民国の袁世凱政府に対して突きつけた、中国での権益拡大を狙った要求を何というか答えなさい。", ans: "二十一カ条の要求", p: 2, unit: "第1次世界大戦・革命", type: "一問一答" },
+        { id: "s4", text: "二十一カ条の要求に対し、中国の民衆が反発して1919年5月4日に北京から始まった、抗日・反帝国主義運動を何というか答えなさい。", ans: "五・四運動", p: 2, unit: "第1次世界大戦・革命", type: "一問一答" },
+        { id: "s5", text: "第1次世界大戦中、ロシアにおいて世界で最初の社会主義政府が樹立された一連の出来事を何というか答えなさい。", ans: "ロシア革命", p: 2, unit: "第1次世界大戦・革命", type: "一問一答" },
+        { id: "s6", text: "ロシア革命の影響が広がるのを恐れた日本や欧米諸国が、ロシアへ共同で軍隊を派遣した出来事を何というか答えなさい。", ans: "シベリア出兵", p: 2, unit: "第1次世界大戦・革命", type: "一問一答" },
+        { id: "s7", text: "シベリア出兵の噂をきっかけに米の買い占めが起こり価格が急騰。富山県から全国へ広がった民衆暴動を何というか答えなさい。", ans: "米騒動", p: 2, unit: "第1次世界大戦・革命", type: "一問一答" },
+        { id: "s8", text: "大戦景気の中、にわかに大金持ちになって【資料1】のように振る舞った人々を何というか答えなさい。", ans: "成金（なりきん）", p: 2, unit: "第1次世界大戦・革命", type: "一問一答", hasImg: "narikin" },
+        { id: "s9", text: "大戦後の1920年、アメリカ大統領ウィルソンの提案によって設立された初の国際平和組織の名称を答えなさい。", ans: "国際連盟", p: 2, unit: "第1次世界大戦・革命", type: "一問一答" },
+        { id: "s10", text: "1918年、日本で最初の本格的な政党内閣を組織し、「平民宰相」と呼ばれた人物は誰ですか。", ans: "原敬（はらたかし）", p: 2, unit: "大正デモクラシー・文化", type: "一問一答" },
+        { id: "s11", text: "美濃部達吉が唱え、天皇の権力も憲法に従うべきだと主張した、大日本帝国憲法解釈の学説を何というか答えなさい。", ans: "天皇機関説", p: 2, unit: "大正デモクラシー・文化", type: "一問一答" },
+        { id: "s12", text: "1922年、「人の世に熱あれ、人間に光あれ」の宣言で知られる、被差別部落の解放を目指し結成された組織は何か答えなさい。", ans: "全国水平社", p: 2, unit: "大正デモクラシー・文化", type: "一問一答" },
+        { id: "s13", text: "1920年、平塚らいてうや市川房枝らが結成し、女性の地位向上や新権利獲得を求めて活動した組織を答えなさい。", ans: "新婦人協会", p: 2, unit: "大正デモクラシー・文化", type: "一問一答" },
+        { id: "s14", text: "1929年、アメリカ・ニューヨークの株価大暴落を契機に、世界中を襲った深刻な経済不況を何というか答えなさい。", ans: "世界恐慌", p: 2, unit: "世界恐慌・ファシズム", type: "一問一答" },
+        { id: "s15", text: "アメリカのルーズベルト大統領が世界恐慌対策として行った、ダム建設などの公共事業で失業者を救済した一連の政策を何というか。", ans: "ニューディール政策", p: 2, unit: "世界恐慌・ファシズム", type: "一問一答" },
+        { id: "s16", text: "英仏などが本国と植民地間の関税を下げて外国商品を締め出した、排他的な経済圏対策を何というか答えなさい。", ans: "ブロック経済", p: 2, unit: "世界恐慌・ファシズム", type: "一問一答" },
+        { id: "s17", text: "1931年、関東軍が南満州鉄道の線路を爆破した事件をきっかけに開始した、中国東北部への軍事侵略行為を何というか。", ans: "満州事変", p: 2, unit: "世界恐慌・ファシズム", type: "一問一答" },
+        { id: "s18", text: "1932年、満州への武力進出に慎重だった犬養毅首相が、海軍の青年将校らによって暗殺された事件を何というか答えなさい。", ans: "五・一五事件", p: 2, unit: "世界恐慌・ファシズム", type: "一問一答" },
+        { id: "s19", text: "1937年、北京郊外の盧溝橋での衝突をきっかけに始まった、日本と中国との間の全面的な戦争を何というか答えなさい。", ans: "日中戦争", p: 2, unit: "日中戦争・太平洋戦争", type: "一問一答" },
+        { id: "s20", text: "米・英・中・蘭が、東南アジアへ進出する日本に対して敷いた経済封鎖の包囲陣を、各国の頭文字から何というか答えなさい。", ans: "ABCD包囲陣", p: 2, unit: "日中戦争・太平洋戦争", type: "一問一答" },
+        { id: "s21", text: "1941年12月、日本軍がハワイの真珠湾を奇襲攻撃したことで勃発した、アジア・太平洋を舞台とする大戦を何というか。", ans: "太平洋戦争", p: 2, unit: "日中戦争・太平洋戦争", type: "一問一答" },
+        { id: "s22", text: "戦時下、日本政府が朝鮮や台湾の人々に対して、日本風の氏名への変更を強制した同化政策を何というか答えなさい。", ans: "創氏改名", p: 2, unit: "日中戦争・太平洋戦争", type: "一問一答" }
+    ],
+
+    desc: [
+        { id: "d1", text: "【資料1の風刺画問題】この人物が100円札に火をつけている行動の背景について、当時の日本の経済景気がどのように変化したかを含めて記述しなさい。", ans: "第1次世界大戦の勃発によりヨーロッパ向け等の輸出が急増する「大戦景気」を迎え、日本経済が空前の好景気になったことで、急激に巨万の富を得た成金が登場したため。", p: 6, unit: "第1次世界大戦・革命", type: "記述問題", hasImg: "narikin", keywords: ["第1次世界大戦", "大戦景気", "好景気", "成金"] },
+        { id: "d2", text: "1925年に日本で「普通選挙法」が制定され、納税額による制限が撤廃されましたが、この時点でも依然として排除されていた対象と条件について、「年齢」「性別」の語句を明確に用いて説明しなさい。", ans: "選挙権は満25歳以上の全ての「男子」のみに与えられており、「女性」には一律で参政権が認められていないという制限が残されていた点。", p: 6, unit: "大正デモクラシー・文化", type: "記述問題", keywords: ["満25歳以上", "男子", "女性", "参政権"] },
+        { id: "d3", text: "昭和恐慌時、日本の農村の主軸だった「米」および「生糸」の物価急落がもたらした農村の窮状について、実態を簡潔に説明しなさい。", ans: "恐慌の影響でアメリカ向けの生糸輸出が激減し、米価も暴落したため、農家の現金収入が途絶え、農村は深刻な貧困や飢饉に陥るなどの大打撃を受けた。", p: 6, unit: "世界恐慌・ファシズム", type: "記述問題", keywords: ["生糸輸出", "米価", "暴落", "貧困"] },
+        { id: "d4", text: "日本政府および軍部は占領地に対して「大東亜共栄圏」というアジアの繁栄を謳うスローガンを掲げましたが、実際の占領地で現地の人々に対し日本軍が行った直接的な苦痛や影響の具体例を説明しなさい。", ans: "現地の資源や食料を厳しく強制徴発して人々を飢えさせたり、日本語の教育や神社への参拝を強制して民族のプライドを傷つけたり、労務者として強制労働を強いた点。", p: 6, unit: "日中戦争・太平洋戦争", type: "記述問題", keywords: ["強制徴発", "日本語の教育", "神社", "強制労働"] }
+    ],
+
+    essay: [
+        { id: "e1", text: "世界恐慌後にドイツにおいて独裁政治が進んだ歴史的背景と、その後の国際連盟に対するドイツの動きについて、「ナチス」「国際連盟」の語句を使って100字以内で論述しなさい。", ans: "恐慌による深刻な不況への国民の不満を背景にヒトラー率いるナチスが政権を獲得した。その後、軍備拡張を批判されたドイツは国際連盟を脱退し、周辺地域への侵略を強め第2次世界大戦の火種となった。", p: 10, unit: "世界恐慌・ファシズム", type: "論述問題", keywords: ["ナチス", "ヒトラー", "不満", "国際連盟", "脱退"] },
+        { id: "e2", text: "第1次世界大戦後のアジア地域（中国・朝鮮）で起きた民族独立・反帝国主義運動の共通する発生要因について、大戦中の日本の動き（二十一カ条の要求など）に触れつつ論述しなさい。", ans: "大戦中に日本が中国へ突きつけた二十一カ条の要求に見られる強引な大陸進出や、植民地支配による民族自決の抑圧への怒りが契機となり、中国での五・四運動や朝鮮での三・一独立運動という抗日運動へ発展した。", p: 10, unit: "第1次世界大戦・革命", type: "論述問題", keywords: ["二十一カ条の要求", "植民地支配", "五・四運動", "三・一独立運動"] }
+    ]
+};
+
+// --- パブリックドメイン歴史画像の引用 ---
+const imgAssets = {
+    narikin: `<div class="img-container"><strong>【資料1：大戦景気の成金（和田邦坊・作）】</strong><br><img src="https://upload.wikimedia.org/wikipedia/commons/e/e6/Narikin_by_Kunibo_Wada.jpg" alt="成金"></div>`
+};
+
+let currentQuestions = [];
+let userScores = {}; 
+let chartTypeInstance = null;
+let chartUnitInstance = null;
+let chartTimelineInstance = null;
+let targetMaxScore = 70;
+let timerInterval = null;
+
+// --- 1. テストの完全新規ランダム生成 ---
+function buildRandomTest() {
+    clearInterval(timerInterval);
+    const maxInput = parseInt(document.getElementById('inputMaxScore').value);
+    if (isNaN(maxInput) || maxInput < 10) { alert("満点は10点以上で設定してください。"); return; }
+    targetMaxScore = maxInput;
+
+    document.getElementById('headerMaxScore').innerText = targetMaxScore;
+    document.getElementById('labelMaxScore').innerText = targetMaxScore;
+
+    const shuffle = array => array.sort(() => Math.random() - 0.5);
+    let shortPool = shuffle([...itemPool.short]);
+    let descPool = shuffle([...itemPool.desc]);
+    let essayPool = shuffle([...itemPool.essay]);
+
+    currentQuestions = [];
+    let currentTotal = 0;
+
+    // 配点割り振り
+    if (targetMaxScore >= 40 && essayPool.length > 0) {
+        currentQuestions.push(essayPool[0]);
+        currentTotal += essayPool[0].p;
+    }
+    const maxDesc = targetMaxScore >= 60 ? 3 : 1;
+    for(let i=0; i<maxDesc; i++) {
+        if(descPool[i] && (currentTotal + descPool[i].p <= targetMaxScore)) {
+            currentQuestions.push(descPool[i]);
+            currentTotal += descPool[i].p;
+        }
+    }
+    for(let i=0; i<shortPool.length; i++) {
+        if (currentTotal + shortPool[i].p <= targetMaxScore) {
+            currentQuestions.push(shortPool[i]);
+            currentTotal += shortPool[i].p;
+        }
+        if (currentTotal === targetMaxScore) break;
+    }
+    if (currentTotal < targetMaxScore && currentQuestions.length > 0) {
+        const diff = targetMaxScore - currentTotal;
+        currentQuestions[currentQuestions.length - 1].p += diff;
+    }
+
+    const typeOrder = { "一問一答": 1, "記述問題": 2, "論述問題": 3 };
+    currentQuestions.sort((a, b) => typeOrder[a.type] - typeOrder[b.type]);
+
+    initScoresAndRender();
+    startTimer(targetMaxScore * 45); // 1点あたり45秒計算で制限時間を自動セット
+}
+
+// --- 2. 「間違えた問題だけ」で再テストの生成 ---
+function buildWrongOnlyTest() {
+    clearInterval(timerInterval);
+    let wrongItems = currentQuestions.filter(q => !userScores[q.id].passed);
+    if(wrongItems.length === 0) { alert("間違えた問題はありません！完璧です！"); return; }
+
+    currentQuestions = wrongItems;
+    // 間違えた問題の合計点で満点を再計算
+    targetMaxScore = currentQuestions.reduce((sum, q) => sum + q.p, 0);
+    document.getElementById('headerMaxScore').innerText = targetMaxScore + " (弱点特訓)";
+    document.getElementById('labelMaxScore').innerText = targetMaxScore;
+
+    initScoresAndRender();
+    startTimer(targetMaxScore * 60); // 復習時は1点あたり60秒に少し緩める
+}
+
+function initScoresAndRender() {
+    userScores = {};
+    currentQuestions.forEach(q => { userScores[q.id] = { passed: false, p: q.p, unit: q.unit, type: q.type } });
+    renderTestHTML();
+    updateScoreAndAnalytics();
+    document.getElementById('placeholder').style.display = 'none';
+    document.getElementById('testArea').style.display = 'block';
+    document.getElementById('btnRetryWrong').style.display = 'none';
+}
+
+// --- ⏱️ タイマー機能の実装 ---
+function startTimer(durationSeconds) {
+    document.getElementById('timerBox').style.display = 'block';
+    let timeRemaining = durationSeconds;
+    
+    const updateTimerDisplay = () => {
+        let minutes = Math.floor(timeRemaining / 60);
+        let seconds = timeRemaining % 60;
+        document.getElementById('timeLeft').innerText = 
+            `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    };
+
+    updateTimerDisplay();
+    timerInterval = setInterval(() => {
+        timeRemaining--;
+        updateTimerDisplay();
+        if(timeRemaining <= 0) {
+            clearInterval(timerInterval);
+            alert("⏰ 制限時間終了です！自己採点へ進んでください。");
+        }
+    }, 1000);
+}
+
+// --- 📝 キーワード採点機能付きのテスト用紙描画 ---
+function renderTestHTML() {
+    const container = document.getElementById('dynamicQuestions');
+    let html = "";
+    
+    currentQuestions.forEach((q, index) => {
+        let imgHtml = q.hasImg ? imgAssets[q.hasImg] : "";
+        
+        // 記述・論述におけるキーワードチェックボックスの生成
+        let keywordHtml = "";
+        if(q.keywords) {
+            keywordHtml += `<div class="keyword-box"><div class="keyword-title">⚠️ 自己採点基準（含むべき必須キーワード）：</div>`;
+            q.keywords.forEach(kw => {
+                keywordHtml += `
+                    <label class="keyword-item">
+                        <input type="checkbox" onchange="this.parentElement.style.color = this.checked ? '#28a745':'#333'"> ${kw}
+                    </label>
+                `;
+            });
+            keywordHtml += `</div>`;
+        }
+        
+        html += `
+            <div class="question-item">
+                <span class="point-tag">${q.type} (${q.p}点)</span>
+                <div><strong>問 ${index + 1}.</strong> ${q.text}</div>
+                ${imgHtml}
+                
+                <div class="ans-text" id="ans_${q.id}">
+                    <strong>【模範解答】</strong><br>${q.ans}
+                    ${keywordHtml}
+                </div>
+
+                <div class="scoring-zone no-print">
+                    <span>自己採点：</span>
+                    <button class="btn-score" id="btn_o_${q.id}" onclick="setQuestionScore('${q.id}', true)">◯ 正解</button>
+                    <button class="btn-score" id="btn_x_${q.id}" onclick="setQuestionScore('${q.id}', false)">× 不正解</button>
+                    <button class="btn-score" style="margin-left:auto; background:#6b7280; color:#fff;" onclick="document.getElementById('ans_${q.id}').style.display='block'">解答・採点基準を確認</button>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function setQuestionScore(id, isCorrect) {
+    userScores[id].passed = isCorrect;
+    document.getElementById(`btn_o_${id}`).className = isCorrect ? "btn-score active-correct" : "btn-score";
+    document.getElementById(`btn_x_${id}`).className = !isCorrect ? "btn-score active-wrong" : "btn-score";
+    
+    updateScoreAndAnalytics();
+}
+
+function updateScoreAndAnalytics() {
+    let totalScore = 0;
+    let hasWrong = false;
+    let wrongByType = { "一問一答": 0, "記述問題": 0, "論述問題": 0 };
+    let wrongByUnit = { "第1次世界大戦・革命": 0, "大正デモクラシー・文化": 0, "世界恐慌・ファシズム": 0, "日中戦争・太平洋戦争": 0 };
+
+    Object.keys(userScores).forEach(id => {
+        const item = userScores[id];
+        if (item.passed) { totalScore += item.p; } 
+        else {
+            hasWrong = true;
+            wrongByType[item.type] += item.p;
+            wrongByUnit[item.unit] += item.p;
+        }
+    });
+
+    document.getElementById('liveScore').innerText = totalScore;
+    // 間違えた問題がある場合のみ「間違えた問題だけで再テスト」ボタンを出す
+    document.getElementById('btnRetryWrong').style.display = hasWrong ? 'block' : 'none';
+
+    renderCharts(wrongByType, wrongByUnit);
+}
+
+// --- 📊 分析用レーダー＆バーチャートの描画 ---
+function renderCharts(typeData, unitData) {
+    const ctxType = document.getElementById('chartType').getContext('2d');
+    if (chartTypeInstance) chartTypeInstance.destroy();
+    chartTypeInstance = new Chart(ctxType, {
+        type: 'bar',
+        data: { labels: Object.keys(typeData), datasets: [{ label: '形式別失点', data: Object.values(typeData), backgroundColor: ['#fca5a5', '#ef4444', '#b91c1c'] }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, suggestedMax: 15 } } }
+    });
+
+    const ctxUnit = document.getElementById('chartUnit').getContext('2d');
+    if (chartUnitInstance) chartUnitInstance.destroy();
+    chartUnitInstance = new Chart(ctxUnit, {
+        type: 'radar',
+        data: { labels: Object.keys(unitData), datasets: [{ label: '単元別苦手度', data: Object.values(unitData), backgroundColor: 'rgba(220, 53, 69, 0.2)', borderColor: '#dc3545' }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, suggestedMax: 15 } } }
+    });
+}
+
+// --- 📈 過去のスコア成長推移グラフの描画 ---
+function renderTimelineChart() {
+    let currentHistory = JSON.parse(localStorage.getItem('history_tests') || '[]');
+    // 古い順に並び替え
+    let timelineData = [...currentHistory].reverse();
+
+    const ctxTimeline = document.getElementById('chartTimeline').getContext('2d');
+    if (chartTimelineInstance) chartTimelineInstance.destroy();
+
+    chartTimelineInstance = new Chart(ctxTimeline, {
+        type: 'line',
+        data: {
+            labels: timelineData.map(h => h.date.split(" ")[0]), // 日付のみ
+            datasets: [{
+                label: '得点率 (%)',
+                data: timelineData.map(h => Math.round((parseInt(h.score) / parseInt(h.maxScore)) * 100)),
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                tension: 0.2,
+                fill: true
+            }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { min: 0, max: 100 } } }
+    });
+}
+
+function toggleAllAnswers() {
+    const displays = document.querySelectorAll('.ans-text');
+    displays.forEach(d => d.style.display = (d.style.display === 'block' ? 'none' : 'block'));
+}
+
+// --- 💾 履歴の保存と連動 ---
+function saveCurrentTest() {
+    clearInterval(timerInterval);
+    const score = document.getElementById('liveScore').innerText;
+    const pages = document.getElementById('inputPages').value;
+    const date = new Date().toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute:'2-digit' });
+    
+    const historyItem = { score, maxScore: targetMaxScore, pages, date };
+    let currentHistory = JSON.parse(localStorage.getItem('history_tests') || '[]');
+    currentHistory.unshift(historyItem);
+    localStorage.setItem('history_tests', JSON.stringify(currentHistory));
+    
+    loadHistoryList();
+    alert("テスト結果を保存し、成長推移を更新しました！");
+}
+
+function loadHistoryList() {
+    const listContainer = document.getElementById('historyList');
+    let currentHistory = JSON.parse(localStorage.getItem('history_tests') || '[]');
+    
+    if (currentHistory.length === 0) {
+        listContainer.innerHTML = '<li style="color: #999; font-size:12px;">履歴はまだありません。</li>';
+        return;
+    }
+    
+    listContainer.innerHTML = currentHistory.map(h => `
+        <li class="history-item">
+            <strong>${h.date}</strong> - <span class="badge" style="background:#0056b3;">${h.score} / ${h.maxScore}点</span><br>
+            <span style="color:#666; font-size:11px;">範囲: ${h.pages}</span>
+        </li>
+    `).join('');
+
+    renderTimelineChart();
+}
+
+function clearHistory() {
+    if(confirm("これまでの全ての履歴と成長グラフを消去しますか？")) {
+        localStorage.removeItem('history_tests');
+        loadHistoryList();
+    }
+}
+
+window.onload = function() { loadHistoryList(); };
+</script>
+</body>
+</html>
